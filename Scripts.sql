@@ -51,7 +51,7 @@ exec FortisAdmin.srv.Get_Statistic_Waits
 --зависимости
 exec FortisAdmin.srv.Depend_objects @DB = 'FortisAdmin'
 
-exec srv.GetScalling_monitor_db @t=2						--(БД) Размеры баз данных, mdf и ldf файла
+exec FortisAdmin.srv.GetScalling_monitor_db @t=2						--(БД) Размеры баз данных, mdf и ldf файла
 
 --select @@SERVERNAME
 
@@ -127,14 +127,6 @@ with fs AS
 select * from fs order BY summ_db_total_mb desc
 ; 
 
-SELECT DB_NAME() AS DbName, 
-    name AS FileName, 
-    type_desc,
-    size/128.0 AS CurrentSizeMB,  
-    size/128.0 - CAST(FILEPROPERTY(name, 'SpaceUsed') AS INT)/128.0 AS FreeSpaceMB
-FROM sys.database_files
-WHERE type IN (0,1);
-
 --Размер баз
 exec sp_helpdb
 
@@ -183,7 +175,102 @@ ORDER BY SUM(a.total_pages) * 8/1024 desc
 
 
 
---select c.*, sum(TotalSpaceMB) as TotalSpaceMB_sum, sum(UsedSpaceMB) as UsedSpaceMB_sum, sum(UnusedSpaceMB) as UnusedSpaceMB_sum
+--Просмотр статистики выполнения запросов
+select top 100 qs.sql_handle, qt.text, 	qs.execution_count, qs.total_worker_time, qs.plan_handle, qs.last_worker_time, qs.min_worker_time, qs.max_worker_time, qs.total_physical_reads, qs.total_logical_reads, qs.total_rows, qtp.query_plan
+--,qs.*
+FROM sys.dm_exec_query_stats qs
+CROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) qt
+cross APPLY sys.dm_exec_text_query_plan(qs.plan_handle, qs.statement_start_offset, qs.statement_end_offset) qtp
+--where qt.text like 'select top 1000%_Task18%join%_Task18%'
+--where qt.text like 'select%_Task18%join%_Task18'
+order BY qs.max_worker_time desc, qs.execution_count desc
+
+--Статистика ожиданий
+select t.*, round(t.waiting_tasks_count*100/t.total_cnt, 0) as prcnt from (select *, round(wait_time_ms/case when waiting_tasks_count > 0 then waiting_tasks_count else 1 end, 0) as avg_ms, sum(waiting_tasks_count) over (PARTITION by 1) as total_cnt, getdate() as sys_dt_ins from sys.dm_os_wait_stats ) t order BY waiting_tasks_count desc, wait_time_ms desc;
+
+--Сделать снимок статистики ожиданий
+--insert into dba.dbo.tab_dm_os_wait_stats
+--select *, getdate() into dba.dbo.tab_dm_os_wait_stats from sys.dm_os_wait_stats;
+select *, getdate() from sys.dm_os_wait_stats;
+
+--Просмотреть снимки статитстик ожиданий
+select t.*, round(t.waiting_tasks_count*100/t.total_cnt, 0) as prcnt from (select *, round(wait_time_ms/case when waiting_tasks_count > 0 then waiting_tasks_count else 1 end, 0) as avg_ms, sum(waiting_tasks_count) over (PARTITION by sys_dt_ins) as total_cnt from dba.dbo.tab_dm_os_wait_stats) t  WHERE waiting_tasks_count > 0 and wait_type in (N'MEMORY_ALLOCATION_EXT', N'MEMORY_ALLOCATION_EXT', N'OLEDB', N'RESERVED_MEMORY_ALLOCATION_EXT', N'RESERVED_MEMORY_ALLOCATION_EXT', N'SOS_SCHEDULER_YIELD', N'SLEEP_TASK', N'PAGEIOLATCH_SH', N'LOGMGR_QUEUE', N'SOS_SCHEDULER_YIELD', N'SLEEP_TASK', N'LOGMGR_QUEUE', N'LAZYWRITER_SLEEP', N'PAGEIOLATCH_SH', N'WRITELOG', N'BACKUPBUFFER', N'PAGEIOLATCH_EX', N'ASYNC_NETWORK_IO', N'PAGELATCH_EX', N'LAZYWRITER_SLEEP', N'BACKUPIO', N'WRITELOG', N'IO_COMPLETION', N'DIRTY_PAGE_POLL', N'BACKUPBUFFER', N'DIRTY_PAGE_POLL', N'IO_COMPLETION', N'PAGEIOLATCH_EX', N'SLEEP_BPOOL_FLUSH', N'BACKUPIO', N'DISPATCHER_QUEUE_SEMAPHORE', N'HADR_CLUSAPI_CALL', N'ASYNC_NETWORK_IO', N'SLEEP_BPOOL_FLUSH', N'HADR_CLUSAPI_CALL', N'DISPATCHER_QUEUE_SEMAPHORE', N'HADR_FILESTREAM_IOMGR_IOCOMPLETION', N'HADR_FILESTREAM_IOMGR_IOCOMPLETION', N'PAGELATCH_EX', N'PREEMPTIVE_XE_CALLBACKEXECUTE', N'PREEMPTIVE_OS_AUTHENTICATIONOPS', N'PREEMPTIVE_XE_CALLBACKEXECUTE', N'PREEMPTIVE_XE_SESSIONCOMMIT', N'PREEMPTIVE_OS_CRYPTOPS', N'PREEMPTIVE_OS_AUTHENTICATIONOPS', N'PREEMPTIVE_XE_SESSIONCOMMIT', N'LOGBUFFER', N'BROKER_TO_FLUSH', N'PAGELATCH_SH', N'BROKER_TO_FLUSH', N'PREEMPTIVE_OS_CRYPTOPS', N'SP_SERVER_DIAGNOSTICS_SLEEP', N'SP_SERVER_DIAGNOSTICS_SLEEP', N'PREEMPTIVE_OS_AUTHORIZATIONOPS', N'XE_TIMER_EVENT', N'PREEMPTIVE_OS_QUERYREGISTRY', N'PREEMPTIVE_XE_TARGETINIT', N'PREEMPTIVE_XE_TARGETFINALIZE', N'PREEMPTIVE_OS_CRYPTACQUIRECONTEXT', N'SQLTRACE_INCREMENTAL_FLUSH_SLEEP', N'XE_TIMER_EVENT', N'SLEEP_BUFFERPOOL_HELPLW', N'PREEMPTIVE_OS_QUERYREGISTRY', N'CHECKPOINT_QUEUE', N'PREEMPTIVE_XE_TARGETFINALIZE', N'PREEMPTIVE_XE_TARGETINIT', N'PAGELATCH_UP', N'SQLTRACE_INCREMENTAL_FLUSH_SLEEP', N'BROKER_TASK_STOP', N'REQUEST_FOR_DEADLOCK_SEARCH', N'TRACEWRITE', N'PREEMPTIVE_OS_AUTHORIZATIONOPS', N'PAGEIOLATCH_UP', N'CHECKPOINT_QUEUE', N'BROKER_TASK_STOP', N'REQUEST_FOR_DEADLOCK_SEARCH', N'PREEMPTIVE_OS_CRYPTACQUIRECONTEXT', N'PREEMPTIVE_OS_WRITEFILE', N'PAGELATCH_SH', N'PREEMPTIVE_OS_QUERYCONTEXTATTRIBUTES', N'PREEMPTIVE_OS_REVERTTOSELF', N'PREEMPTIVE_OS_DELETESECURITYCONTEXT', N'PAGEIOLATCH_UP', N'PREEMPTIVE_OS_QUERYCONTEXTATTRIBUTES', N'PREEMPTIVE_OS_REVERTTOSELF', N'PREEMPTIVE_OS_DELETESECURITYCONTEXT', N'PREEMPTIVE_OS_WRITEFILE', N'PREEMPTIVE_OLEDBOPS', N'PREEMPTIVE_XE_GETTARGETSTATE', N'PREEMPTIVE_XE_GETTARGETSTATE', N'XE_DISPATCHER_WAIT', N'PAGELATCH_UP', N'XE_DISPATCHER_WAIT', N'BACKUPTHREAD', N'QDS_PERSIST_TASK_MAIN_LOOP_SLEEP', N'PREEMPTIVE_OLEDBOPS', N'LCK_M_X', N'QDS_PERSIST_TASK_MAIN_LOOP_SLEEP', N'WRITE_COMPLETION', N'PREEMPTIVE_OS_REPORTEVENT', N'LOGBUFFER', N'BACKUPTHREAD') order BY /*t.waiting_tasks_count desc, */t.wait_type, t.sys_dt_ins;
+
+--просмотр системных статистик
+SELECT sp.stats_id,        name,        filter_definition,        last_updated,        rows,        rows_sampled,        steps,        unfiltered_rows,        modification_counter
+FROM sys.stats AS stat
+     CROSS APPLY sys.dm_db_stats_properties(stat.object_id, stat.stats_id) AS sp
+WHERE 1=1
+	--and stat.object_id = OBJECT_ID('HumanResources.Employee')
+	and modification_counter > 0
+	and last_updated < getdate() - 1
+order by last_updated
+	;
+
+--Отбор статистик для обновления
+;with st AS(
+	select DISTINCT 
+	obj.[object_id]
+	, obj.[create_date]
+	, OBJECT_SCHEMA_NAME(obj.[object_id]) as [SchemaName]
+	, obj.[name] as [ObjectName]
+	, CAST(
+			(
+			   --общее число страниц, зарезервированных в секции (по 8 КБ на 1024 поделить=поделить на 128)
+				SELECT SUM(ps2.[reserved_page_count])/128.
+				from sys.dm_db_partition_stats as ps2
+				where ps2.[object_id] = obj.[object_id]
+			) as numeric (38,2)
+		  ) as [ObjectSizeMB] --размер объекта в МБ
+	, s.[stats_id]
+	, s.[name] as [StatName]
+	, sp.[last_updated]
+	, i.[index_id]
+	, i.[type_desc]
+	, i.[name] as [IndexName]
+	, ps.[row_count]
+	, s.[has_filter]
+	, s.[no_recompute]
+	, sp.[rows]
+	, sp.[rows_sampled]
+	--кол-во изменений вычисляется как:
+	--сумма общего кол-ва изменений в начальном столбце статистики с момента последнего обновления статистики
+	--и разности приблизительного кол-ва строк в секции и общего числа строк в таблице или индексированном представлении при последнем обновлении статистики
+	, sp.[modification_counter]+ABS(ps.[row_count]-sp.[rows]) as [ModificationCounter]
+	--% количества строк, выбранных для статистических вычислений,
+	--к общему числу строк в таблице или индексированном представлении при последнем обновлении статистики
+	, NULLIF(CAST( sp.[rows_sampled]*100./sp.[rows] as numeric(18,3)), 100.00) as [ProcSampled]
+	--% общего кол-ва изменений в начальном столбце статистики с момента последнего обновления статистики
+	--к приблизительному количество строк в секции
+	, CAST(sp.[modification_counter]*100./(case when (ps.[row_count]=0) then 1 else ps.[row_count] end) as numeric (18,3)) as [ProcModified]
+	--Вес объекта:
+	--[ProcModified]*десятичный логарифм от приблизительного кол-ва строк в секции
+	, CAST(sp.[modification_counter]*100./(case when (ps.[row_count]=0) then 1 else ps.[row_count] end) as numeric (18,3))
+								* case when (ps.[row_count]<=10) THEN 1 ELSE LOG10 (ps.[row_count]) END as [Func]
+	--было ли сканирование:
+	--общее количество строк, выбранных для статистических вычислений, не равно
+	--общему числу строк в таблице или индексированном представлении при последнем обновлении статистики
+	, CASE WHEN sp.[rows_sampled]<>sp.[rows] THEN 0 ELSE 1 END as [IsScanned]
+	, tbl.[name] as [ColumnType]
+	, s.[auto_created]	
+	from sys.objects as obj
+	inner join sys.stats as s on s.[object_id] = obj.[object_id]
+	left outer join sys.indexes as i on i.[object_id] = obj.[object_id] and (i.[name] = s.[name] or i.[index_id] in (0,1) 
+					and not exists(select top(1) 1 from sys.indexes i2 where i2.[object_id] = obj.[object_id] and i2.[name] = s.[name]))
+	left outer join sys.dm_db_partition_stats as ps on ps.[object_id] = obj.[object_id] and ps.[index_id] = i.[index_id]
+	outer apply sys.dm_db_stats_properties (s.[object_id], s.[stats_id]) as sp
+	left outer join sys.stats_columns as sc on s.[object_id] = sc.[object_id] and s.[stats_id] = sc.[stats_id]
+	left outer join sys.columns as col on col.[object_id] = s.[object_id] and col.[column_id] = sc.[column_id]
+	left outer join sys.types as tbl on col.[system_type_id] = tbl.[system_type_id] and col.[user_type_id] = tbl.[user_type_id]
+	where obj.[type_desc] <> 'SYSTEM_TABLE'
+	)
+	SELECT *
+	FROM st
+	WHERE NOT (st.[row_count] = 0 AND st.[last_updated] IS NULL)--если нет данных и статистика не обновлялась
+		--если нечего обновлять
+		AND NOT (st.[row_count] = st.[rows] AND st.[row_count] = st.[rows_sampled] AND st.[ModificationCounter]=0)
+		--если есть что обновлять (и данные существенно менялись)
+		AND ((st.[ProcModified]>=10.0) OR (st.[Func]>=10.0) OR (st.[ProcSampled]<=50))
 ;
 
 --Columns description
@@ -199,9 +286,9 @@ with c as
 (
 	select o.object_id, cu.CONSTRAINT_NAME, o.name, o.type, o.type_desc, c.TABLE_SCHEMA, c.COLUMN_NAME, c.DATA_TYPE, c.ORDINAL_POSITION, c.IS_NULLABLE, c.CHARACTER_MAXIMUM_LENGTH, c.COLUMN_DEFAULT, columnproperty(o.object_id, c.COLUMN_NAME, 'IsIdentity') as Is_Identity
 			,case when cu.CONSTRAINT_NAME is not null then 1 else 0 end as is_pk
-	from FortisAdmin.sys.objects o
-	left outer join FortisAdmin.INFORMATION_SCHEMA.COLUMNS c on o.name = c.TABLE_NAME
-	left outer join FortisAdmin.sys.objects o1 on o.object_id = o1.parent_object_id and o1.type = 'PK'
+	from sys.objects o
+	left outer join INFORMATION_SCHEMA.COLUMNS c on o.name = c.TABLE_NAME
+	left outer join sys.objects o1 on o.object_id = o1.parent_object_id and o1.type = 'PK'
 	left outer join INFORMATION_SCHEMA.KEY_COLUMN_USAGE cu on o1.name = cu.CONSTRAINT_NAME and c.COLUMN_NAME = cu.COLUMN_NAME
 	where 1=1
 	and o.type = 'U'
@@ -215,35 +302,6 @@ select c.DATA_TYPE, count(*) as cnt from c where is_pk = 1 group by c.DATA_TYPE
 --Найти пользователей
 SELECT * FROM sys.syslogins l where upper(name) like upper('%dwh%')
 
-
-select object_name(s.object_id, database_id),  avg_fragment_size_in_pages, fragment_count, avg_fragmentation_in_percent, s.*
-from sys.dm_db_index_physical_stats(DB_ID(N'ustupki_nsv'), /*OBJECT_ID(N'AERdb')*/NULL, NULL, NULL , 'DETAILED') s
---inner join sys.indexes i on s.object_id = i.object_id
-where 1=1 
-     	--and avg_fragmentation_in_percent > 5
-		--and avg_fragmentation_in_percent < 30
-		and avg_fragmentation_in_percent >= 30
-		--and object_name(s.object_id, database_id)!= 'interaction_activity_flat_table'
-
-
-select tab_name, 'use [AERdb] ALTER INDEX ALL ON dbo.'+tab_name+' REORGANIZE;' as ddl from
-(
-	select distinct object_name(object_id, database_id) as tab_name, avg_fragmentation_in_percent
-	from sys.dm_db_index_physical_stats(DB_ID(N'BIT_FIN'), /*OBJECT_ID(N'AERdb')*/NULL, NULL, NULL , NULL)
-	where 1=1
-		and avg_fragmentation_in_percent > 5
-		and avg_fragmentation_in_percent < 30
-		--and object_name(object_id, database_id)!= 'interaction_activity_flat_table'
-) t
-
-select tab_name, 'use [AERdb] ALTER INDEX ALL ON dbo.'+tab_name+' REBUILD;' as ddl from
-(
-	select distinct object_name(object_id, database_id) as tab_name
-	from sys.dm_db_index_physical_stats(DB_ID(N'AERdb'), /*OBJECT_ID(N'AERdb')*/NULL, NULL, NULL , 'DETAILED')
-	where 1=1
-		and avg_fragmentation_in_percent >= 30
-		--and object_name(object_id, database_id)!= 'interaction_activity_flat_table'
-)
 
 
 --Уровен изоляции транзакций
@@ -284,3 +342,27 @@ create event notification [blocked_threshold_exceeded]
 select SERVERPROPERTY('collation');
 --available collations
 SELECT Name, Description FROM fn_helpcollations()  WHERE upper(name) like UPPER('latin%gen%ci%');
+
+
+--Проверка баз на ошибки и исправление
+/*
+DBCC CHECKDB('bit_fin')
+
+ALTER DATABASE [dba] SET single_user WITH ROLLBACK IMMEDIATE;
+
+ALTER DATABASE [dba] SET emergency;
+
+DBCC CHECKDB (N'bit_fin', REPAIR_ALLOW_DATA_LOSS) WITH ALL_ERRORMSGS, NO_INFOMSGS;
+
+DBCC CHECKDB('dba') WITH NO_INFOMSGS, ALL_ERRORMSGS
+
+ALTER DATABASE [Alerting] SET ONLINE;
+
+ALTER DATABASE [dba] SET multi_user WITH ROLLBACK IMMEDIATE;
+
+ALTER DATABASE [PKB_DWH_Production] SET OFFLINE;
+
+sp_detach_db 'dba', true
+
+sp_attach_db 'dba'
+*/
