@@ -102,13 +102,13 @@ with fs AS
 			m.name as logicalName
 			,coalesce(m.size, 1)*8/1024 as size_MB
 			,coalesce(convert(bigint, m.max_size), 1)*8/1024 as max_size_mb
+			,(m.size - CAST(FILEPROPERTY(m.name, 'SpaceUsed') AS INT))*8/1024 as free_mb
 			,coalesce(m.growth, 1)*8/1024 as growth_mb
 			,sum(coalesce(m.size, 1)*8/1024) over (PARTITION BY d.name) as summ_db_total_mb
 			,sum(coalesce(convert(bigint, m.max_size), 1)*8/1024) over (PARTITION BY d.name) as summ_db_max_size_total_mb
 			,sum(coalesce(m.size, 1)*8/1024) over (PARTITION BY d.name, m.type) as summ_db_size_file_type_mb
 			,sum(coalesce(convert(bigint, m.max_size), 1)*8/1024) over (PARTITION BY d.name, m.type) as summ_db_max_size_file_type_mb
 			,sum(coalesce(m.size, 1)*8/1024) over (PARTITION BY 1) as summ_mb_total
-			,sum(coalesce(m.size, 1)*8/1024) over (PARTITION BY 1) - sum(coalesce(CAST(FILEPROPERTY(m.name, 'SpaceUsed') AS INT), 1)*8/1024) over (PARTITION BY 1) as summ_free_mb_total
 			,f.name as FileGroup
 			,m.type_desc as file_type
 			,m.state_desc as file_state
