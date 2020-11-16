@@ -407,3 +407,47 @@ sp_detach_db 'dba', true
 
 sp_attach_db 'dba'
 */
+
+--Создать Связанный сервер
+USE [master]
+GO
+EXEC master.dbo.sp_addlinkedserver @server = N'prd-flpg-01', @srvproduct=N'SQL Server'
+go
+EXEC master.dbo.sp_addlinkedsrvlogin @rmtsrvname = N'prd-flpg-01', @locallogin = NULL , @useself = N'False', @rmtuser = N'fuel_owner', @rmtpassword = N'wH!QNW9(A3nH'
+GO
+--Для готового драйвера ODBC
+USE [master]
+GO
+EXEC master.dbo.sp_addlinkedserver @server = N'PRD-FLPG-01', @srvproduct=N'prd-flpg-01', @provider=N'MSDASQL', @datasrc=N'prd-flpg-01'
+
+GO
+EXEC master.dbo.sp_serveroption @server=N'PRD-FLPG-01', @optname=N'collation compatible', @optvalue=N'false'
+GO
+EXEC master.dbo.sp_serveroption @server=N'PRD-FLPG-01', @optname=N'data access', @optvalue=N'true'
+GO
+EXEC master.dbo.sp_serveroption @server=N'PRD-FLPG-01', @optname=N'dist', @optvalue=N'false'
+GO
+EXEC master.dbo.sp_serveroption @server=N'PRD-FLPG-01', @optname=N'pub', @optvalue=N'false'
+GO
+EXEC master.dbo.sp_serveroption @server=N'PRD-FLPG-01', @optname=N'rpc', @optvalue=N'true'
+GO
+EXEC master.dbo.sp_serveroption @server=N'PRD-FLPG-01', @optname=N'rpc out', @optvalue=N'true'
+GO
+EXEC master.dbo.sp_serveroption @server=N'PRD-FLPG-01', @optname=N'sub', @optvalue=N'false'
+GO
+EXEC master.dbo.sp_serveroption @server=N'PRD-FLPG-01', @optname=N'connect timeout', @optvalue=N'0'
+GO
+EXEC master.dbo.sp_serveroption @server=N'PRD-FLPG-01', @optname=N'collation name', @optvalue=null
+GO
+EXEC master.dbo.sp_serveroption @server=N'PRD-FLPG-01', @optname=N'lazy schema validation', @optvalue=N'false'
+GO
+EXEC master.dbo.sp_serveroption @server=N'PRD-FLPG-01', @optname=N'query timeout', @optvalue=N'0'
+GO
+EXEC master.dbo.sp_serveroption @server=N'PRD-FLPG-01', @optname=N'use remote collation', @optvalue=N'true'
+GO
+EXEC master.dbo.sp_serveroption @server=N'PRD-FLPG-01', @optname=N'remote proc transaction promotion', @optvalue=N'false'
+GO
+USE [master]
+GO
+EXEC master.dbo.sp_addlinkedsrvlogin @rmtsrvname = N'PRD-FLPG-01', @locallogin = NULL , @useself = N'False'
+GO
